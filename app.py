@@ -2,6 +2,11 @@ from modules.resume_parser import extract_resume_text
 from modules.question_generator import generate_questions
 from modules.feedback_engine import generate_feedback
 from database import create_table, save_result, get_all_results, get_interview_questions
+from streamlit_mic_recorder import mic_recorder
+from pydub import AudioSegment
+from modules.pdf_report import generate_pdf
+import speech_recognition as sr
+import tempfile
 import plotly.express as px
 import time
 import uuid
@@ -127,7 +132,53 @@ if st.session_state.interview_started:
         answer = st.text_area(
             f"Your Answer for Question {i}",
             key=f"answer_{i}"
+
+        
         )
+
+        audio = mic_recorder(
+            start_prompt="🎤 Start Recording",
+            stop_prompt="⏹️ Stop Recording",
+            key=f"recorder_{i}"
+        )
+
+        if audio:
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio:
+
+                temp_audio.write(audio["bytes"])
+
+                webm_path = temp_audio.name
+                wav_path = webm_path.replace(".webm", ".wav")
+                sound = AudioSegment.from_file(webm_path)
+                sound.export(wav_path, format="wav")
+
+                
+
+                recognizer = sr.Recognizer()
+
+            with sr.AudioFile(wav_path) as source:
+                audio_data = recognizer.record(source)
+
+            try:
+                text = recognizer.recognize_google(audio_data)
+
+                st.success("✅ Voice converted to text!")
+
+                
+                answer = text
+
+
+                st.text_area(
+                    "Converted Answer",
+                    value=answer,
+                    height=150,
+                    key=f"voice_answer_{i}"
+                )
+            except:
+
+                st.error("❌ Could not recognize speech.")
+                    
 
 
         if f"last_click_{i}" not in st.session_state:
@@ -195,6 +246,24 @@ if history:
             st.write(f"Interview Session ID: {interview_id}")
 
             questions_answers = get_interview_questions(interview_id)
+
+            
+            pdf_file = generate_pdf(
+                interview_id, 
+                role_data, 
+                difficulty_data,
+                questions_answers
+                
+                
+                )
+            with open(pdf_file, "rb") as file:
+
+                st.download_button(
+                    label="📄 Download Interview Report",
+                    data=file,
+                    file_name=pdf_file,
+                    mime="application/pdf"
+                )
 
             for q in questions_answers:
 
