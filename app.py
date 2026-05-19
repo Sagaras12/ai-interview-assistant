@@ -2,9 +2,10 @@ from modules.resume_parser import extract_resume_text
 from modules.question_generator import generate_questions
 from modules.feedback_engine import generate_feedback
 from database import create_table, save_result, get_all_results, get_interview_questions
+import plotly.express as px
 import time
 import uuid
-
+import re
 import numpy as np
 import pandas as pd
 
@@ -262,11 +263,13 @@ if history:
 
         try:
 
-            if "Score:" in feedback:
+            import re
+            match = re.search(r'(\d+)/10', feedback_data)
 
-                score_text = feedback.split("Score:")[1].split("out")[0].strip()
+            if match:
 
-                score = int(score_text)
+
+                score = int(match.group(1))
 
                 scores.append(score)
 
@@ -282,6 +285,92 @@ if history:
 
     with col2:
         st.metric("Average Score", average_score)
+
+        # Score Trend Chart
+
+chart_data = []
+
+for item in history:
+
+    interview_id = item[0]
+
+    questions_answers = get_interview_questions(interview_id)
+    
+    scores = []
+
+    for q in questions_answers:
+
+        feedback = q[2]
+
+        try:
+
+            import re
+
+
+            match = re.search(r'(\d+)/10', feedback)
+
+            if match:
+
+                score = int(match.group(1))
+                scores.append(score)
+
+            
+
+        except:
+            pass
+
+    if scores:
+
+        try:
+            avg_score = round(sum(scores) / len(scores), 1)
+
+            chart_data.append({
+                "Interview ID": f"Interview {len(chart_data)+1}",
+                "Average Score": avg_score
+            })
+
+            
+                
+
+        except Exception as e:
+            print(e)
+            
+
+
+if chart_data:
+
+    df = pd.DataFrame(chart_data)
+    average_score = round(df["Average Score"].mean(), 1)
+
+    fig = px.bar(
+        df,
+        x="Interview ID",
+        y="Average Score",
+        title="📈 Interview Performance",
+        text="Average Score",
+        color ="Average Score",
+        color_continuous_scale="blues"
+    )
+
+    fig.update_traces(
+        textposition="outside"
+    )
+
+    fig.update_layout(
+        height=400,
+        xaxis_title="Interview ",
+        yaxis_title="Score",
+        yaxis=dict(range=[0, 10]),
+        showlegend=False,
+        plot_bgcolor="#0E1117",
+        paper_bgcolor="#0E1117",
+        font=dict(color="white")
+        
+        )
+    
+
+    st.plotly_chart(fig, use_container_width=True)
+        
 
 else:
 
